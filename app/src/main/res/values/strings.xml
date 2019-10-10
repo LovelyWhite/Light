@@ -1,10 +1,10 @@
 <resources>
-    <string name="app_name">LightSwitch</string>
+    <string name="app_name">LightSwitch(F only)</string>
     <string name="warn">本程序有风险，对于使用本程序所造成的任何后果由使用者承担.</string>
     <string name="agree">我同意</string>
     <string name="goon">继续</string>
     <string name="t1">本程序仅供学习交流。选择寝室以后点击提交即可进行相应操作</string>
     <string name="t2">提交</string>
     <string name="t3">选择寝室：</string>
-    <string name="t4">开启/关闭</string>
+    <string name="t4">关闭/开启</string>
 </resources>

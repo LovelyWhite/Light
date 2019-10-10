@@ -31,7 +31,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-//http://172.16.254.254:9091/project/CPES_LC/OPCValue.fwx?OPCNodePath=
 public class MainActivity extends AppCompatActivity {
     String[] open = {"setSwitchOff.fwp", "setSwitchOn.fwp"}; //开启关闭选项
     URL url;//连接url我也不知道为什么要弄成全局的，当时脑子抽了
@@ -43,6 +42,8 @@ public class MainActivity extends AppCompatActivity {
     TextView quantity;
     TextView rest;
     TextView status;
+    TextView login;
+    Button openButton;
     AppCompatSpinner spinner;
     SharedPreferences sharedPreferences;
 
@@ -56,6 +57,15 @@ public class MainActivity extends AppCompatActivity {
             } else if(message.what == -1) {
                 Toast.makeText(MainActivity.this.getApplicationContext(), (String)message.obj, Toast.LENGTH_LONG).show();
             }
+            else if(message.what == -2)
+            {
+                login.setBackgroundColor(0xFFE27171);
+                login.setText("未连接成功 点击刷新");
+                Toast.makeText(MainActivity.this.getApplicationContext(), "校园网连接失败", Toast.LENGTH_LONG).show();
+                login.setEnabled(true);
+                openButton.setEnabled(false);
+                spinner.setEnabled(false);
+            }
             else if(message.what == 2)
             {
                 UserInfo userInfo = (UserInfo) message.obj;
@@ -63,18 +73,27 @@ public class MainActivity extends AppCompatActivity {
                 rest.setText(userInfo.getRemainMoney());
                 status.setText(userInfo.getState());
             }
+            else if(message.what == 3)
+            {
+                login.setBackgroundColor(0xFF7CE271);
+                login.setText("连接成功");
+                openButton.setEnabled(true);
+                spinner.setEnabled(true);
+                login.setEnabled(false);
+            }
             return false;
         });
 
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         //控件初始化
-        Button button = findViewById(R.id.open);
+        openButton = findViewById(R.id.open);
         final Switch switchO = findViewById(R.id.switchOpen);
         spinner = findViewById(R.id.select);
         quantity = findViewById(R.id.quantity);
         rest = findViewById(R.id.rest);
         status = findViewById(R.id.status);
+        login = findViewById(R.id.login);
 
         //加载存储信息
         sharedPreferences = getSharedPreferences("init", MODE_PRIVATE);
@@ -99,6 +118,8 @@ public class MainActivity extends AppCompatActivity {
 
             }
         });
+        //登录系统，获取cookie
+        login();
         //读取信息，并且将信息载入到users中
         StringBuilder userString = new StringBuilder();
         InputStream is = getResources().openRawResource(R.raw.users);
@@ -114,12 +135,111 @@ public class MainActivity extends AppCompatActivity {
         }
         users = JSON.parseArray(new String(userString), User.class);
         users.forEach((e)-> userMap.put(e.ammeterUserName,e));
-        //登录系统，获取cookie
+        openButton.setOnClickListener(v -> {
+            String room = spinner.getSelectedItem().toString();
+            User u = userMap.get(room);
+            new AlertDialog.Builder(MainActivity.this).setTitle("确定对" + room + "进行操作?")
+                    .setPositiveButton("确定", (dialog, which) -> {
+                        if (cookieList != null && cookieList.size() != 0)
+                            new Thread(() -> {
+                                try {
+                                    String x;
+                                    if (switchO.isChecked()) {
+                                        x = open[1];
+                                    } else {
+                                        x = open[0];
+                                    }
+                                    url = new URL("http://172.16.254.254:9091/project/CPES_LC/fwp/" + x + "?_dc=" + new Date().getTime() + "&ammeterUserID=" + u.getAmmeterUserID() + "&ammeterCode=" + u.getAmmeterCode() + "&ammeterNodeID=" + u.getAmmeterNodeID() + "&operator=]");
+                                    System.out.println(url.getQuery());
+                                    conn = url.openConnection();
+                                    conn.setConnectTimeout(1200);
+                                    conn.setDoInput(true);
+                                    conn.setDoOutput(true);
+                                    conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+                                    conn.setRequestProperty("Referer", "http://172.16.254.254:9091/project/CPES_LC/");
+                                    String cookie = "fUser1=admin;" + cookieList.get(0).split(";")[0];
+                                    conn.setRequestProperty("Cookie", cookie);
+                                    conn.connect();
+                                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
+                                    String line;
+                                    StringBuilder strBuf = new StringBuilder();
+                                    while ((line = reader.readLine()) != null) {
+                                        strBuf.append(line);
+                                    }
+                                    Message m = new Message();
+                                    m.what = 1;
+                                    handler.sendMessage(m);
+                                } catch (Exception e) {
+                                    Message m = new Message();
+                                    m.what = -2;
+                                    m.obj = e.getMessage();
+                                    handler.sendMessage(m);
+                                }
+                            }).start();
+                        else
+                            Toast.makeText(MainActivity.this.getApplicationContext(), "未连接校园网", Toast.LENGTH_LONG).show();
+
+                    })
+                    .setNegativeButton("我再想想", (dialog, which) -> System.out.println("取消")).show();
+
+        });
+        login.setOnClickListener(view -> {
+            login();
+        });
+    }
+    void flushInfo() {
+        if (cookieList != null && cookieList.size() != 0)
+            new Thread(() -> {
+                //获取剩余金额信息
+                try {
+                    String room = spinner.getSelectedItem().toString();
+                    User u = userMap.get(room);
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putString("floor", room);
+                    editor.apply();
+                    url = new URL("http://172.16.254.254:9091/project/CPES_LC/fwp/getAccountInfo.fwp?ammeterNodeID=" + u.ammeterNodeID + "&_dc=" + new Date().getTime());
+                    conn = url.openConnection();
+                    conn.setConnectTimeout(1200);
+                    conn.setDoInput(true);
+                    conn.setDoOutput(true);
+                    conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+                    conn.setRequestProperty("Referer", "http://172.16.254.254:9091/project/CPES_LC/");
+                    String cookie = "fUser1=admin;" + cookieList.get(0).split(";")[0];
+                    conn.setRequestProperty("Cookie", cookie);
+                    conn.connect();
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                    String line;
+                    StringBuilder strBuf = new StringBuilder();
+                    while ((line = reader.readLine()) != null) {
+                        strBuf.append(line);
+                    }
+                    UserInfo userInfo = JSON.parseObject(strBuf.toString(), UserInfo.class);
+                    Message m = new Message();
+                    m.what = 2;
+                    m.obj = userInfo;
+                    handler.sendMessage(m);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    Message m = new Message();
+                    m.what = -2;
+                    handler.sendMessage(m);
+                }
+            }).start();
+        else
+            Toast.makeText(MainActivity.this.getApplicationContext(), "未连接校园网", Toast.LENGTH_LONG).show();
+    }
+    void login()
+    {
+        login.setText("正在连接...");
+        login.setEnabled(false);
+        openButton.setEnabled(false);
+        spinner.setEnabled(false);
         new Thread(() ->
         {
             try {
                 url = new URL("http://172.16.254.254:9091/fwp/login.fwps");
                 conn = url.openConnection();
+                conn.setConnectTimeout(1200);
                 conn.setDoInput(true);
                 conn.setDoOutput(true);
                 conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
@@ -128,92 +248,20 @@ public class MainActivity extends AppCompatActivity {
                 out.print("userName=admin&passHash=2a5f114a33ffbd1765c23c9013fee3c82deec759");
                 out.flush();
                 cookieList = conn.getHeaderFields().get("Set-Cookie");
-                flushInfo();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }).start();
-        button.setOnClickListener(v -> {
-            String room = spinner.getSelectedItem().toString();
-            User u = userMap.get(room);
-            new AlertDialog.Builder(MainActivity.this).setTitle("确定对" + room + "进行操作?")
-                    .setPositiveButton("确定", (dialog, which) -> {
-                        new Thread(() -> {
-                            try {
-                                String x;
-                                if (switchO.isChecked()) {
-                                    x = open[1];
-                                } else {
-                                    x = open[0];
-                                }
-                                url = new URL("http://172.16.254.254:9091/project/CPES_LC/fwp/" + x + "?_dc=" + new Date().getTime() + "&ammeterUserID=" + u.getAmmeterUserID() + "&ammeterCode=" + u.getAmmeterCode() + "&ammeterNodeID=" + u.getAmmeterNodeID() + "&operator=]");
-                                System.out.println(url.getQuery());
-                                conn = url.openConnection();
-                                conn.setDoInput(true);
-                                conn.setDoOutput(true);
-                                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                                conn.setRequestProperty("Referer", "http://172.16.254.254:9091/project/CPES_LC/");
-                                String cookie = "fUser1=admin;" + cookieList.get(0).split(";")[0];
-                                conn.setRequestProperty("Cookie", cookie);
-                                conn.connect();
-                                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), "UTF-8"));
-                                String line;
-                                StringBuilder strBuf = new StringBuilder();
-                                while ((line = reader.readLine()) != null) {
-                                    strBuf.append(line);
-                                }
-                                System.out.println(strBuf.toString());
-                                Message m = new Message();
-                                m.what = 1;
-                                handler.sendMessage(m);
-                            } catch (IOException e) {
-                                Message m = new Message();
-                                m.obj = e.getMessage();
-                                handler.sendMessage(m);
-                            }
-                        }).start();
-                        System.out.println("确定");
-                    })
-                    .setNegativeButton("我再想想", (dialog, which) -> System.out.println("取消")).show();
-
-        });
-
-    }
-    void flushInfo()
-    {
-        new Thread(()-> {
-            //获取剩余金额信息
-            try
-            {
-                String room = spinner.getSelectedItem().toString();
-                User u = userMap.get(room);
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putString("floor", room);
-                editor.apply();
-                url = new URL("http://172.16.254.254:9091/project/CPES_LC/fwp/getAccountInfo.fwp?ammeterNodeID="+u.ammeterNodeID+"&_dc="+new Date().getTime());
-                conn = url.openConnection();
-                conn.setDoInput(true);
-                conn.setDoOutput(true);
-                conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                conn.setRequestProperty("Referer", "http://172.16.254.254:9091/project/CPES_LC/");
-                String cookie = "fUser1=admin;" + cookieList.get(0).split(";")[0];
-                conn.setRequestProperty("Cookie", cookie);
-                conn.connect();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
-                String line;
-                StringBuilder strBuf = new StringBuilder();
-                while ((line = reader.readLine()) != null) {
-                    strBuf.append(line);
+                if(cookieList!=null&&cookieList.size()!=0)
+                {
+                    //成功
+                    Message m = new Message();
+                    m.what = 3;
+                    handler.sendMessage(m);
                 }
-                UserInfo userInfo = JSON.parseObject(strBuf.toString(),UserInfo.class);
+                flushInfo();
+            } catch (Exception e) {
+                e.printStackTrace();
+                //失败
                 Message m = new Message();
-                m.what = 2;
-                m.obj = userInfo;
+                m.what = -2;
                 handler.sendMessage(m);
-            } catch (MalformedURLException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
             }
         }).start();
     }
