@@ -38,7 +38,7 @@ public class MainActivity extends AppCompatActivity {
     List<String> cookieList;//cookie
     Handler handler;//handler
     List<User> users;//用户列表
-    Map<String,User> userMap = new HashMap<>();//用户map
+    Map<String, User> userMap = new HashMap<>();//用户map
     TextView quantity;
     TextView rest;
     TextView status;
@@ -46,6 +46,8 @@ public class MainActivity extends AppCompatActivity {
     Button openButton;
     AppCompatSpinner spinner;
     SharedPreferences sharedPreferences;
+    static String dz;
+    static String pw;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -54,27 +56,21 @@ public class MainActivity extends AppCompatActivity {
         handler = new Handler(message -> {
             if (message.what == 1) {
                 Toast.makeText(MainActivity.this.getApplicationContext(), "已发送请求", Toast.LENGTH_LONG).show();
-            } else if(message.what == -1) {
-                Toast.makeText(MainActivity.this.getApplicationContext(), (String)message.obj, Toast.LENGTH_LONG).show();
-            }
-            else if(message.what == -2)
-            {
+            } else if (message.what == -1) {
+                Toast.makeText(MainActivity.this.getApplicationContext(), (String) message.obj, Toast.LENGTH_LONG).show();
+            } else if (message.what == -2) {
                 login.setBackgroundColor(0xFFE27171);
                 login.setText("未连接成功 点击刷新");
                 Toast.makeText(MainActivity.this.getApplicationContext(), "校园网连接失败", Toast.LENGTH_LONG).show();
                 login.setEnabled(true);
                 openButton.setEnabled(false);
                 spinner.setEnabled(false);
-            }
-            else if(message.what == 2)
-            {
+            } else if (message.what == 2) {
                 UserInfo userInfo = (UserInfo) message.obj;
                 quantity.setText(userInfo.getCurrentQuantity());
                 rest.setText(userInfo.getRemainMoney());
                 status.setText(userInfo.getState());
-            }
-            else if(message.what == 3)
-            {
+            } else if (message.what == 3) {
                 login.setBackgroundColor(0xFF7CE271);
                 login.setText("连接成功");
                 openButton.setEnabled(true);
@@ -126,15 +122,15 @@ public class MainActivity extends AppCompatActivity {
         InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8);
         BufferedReader br = new BufferedReader(isr);
         String str;
-        try{
-        while ((str = br.readLine()) != null) {
-            userString.append(str);
-        }
+        try {
+            while ((str = br.readLine()) != null) {
+                userString.append(str);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
         users = JSON.parseArray(new String(userString), User.class);
-        users.forEach((e)-> userMap.put(e.ammeterUserName,e));
+        users.forEach((e) -> userMap.put(e.ammeterUserName, e));
         openButton.setOnClickListener(v -> {
             String room = spinner.getSelectedItem().toString();
             User u = userMap.get(room);
@@ -149,14 +145,14 @@ public class MainActivity extends AppCompatActivity {
                                     } else {
                                         x = open[0];
                                     }
-                                    url = new URL("http://172.16.254.254:9091/project/CPES_LC/fwp/" + x + "?_dc=" + new Date().getTime() + "&ammeterUserID=" + u.getAmmeterUserID() + "&ammeterCode=" + u.getAmmeterCode() + "&ammeterNodeID=" + u.getAmmeterNodeID() + "&operator=]");
+                                    url = new URL(dz+"project/CPES_LC/fwp/" + x + "?_dc=" + new Date().getTime() + "&ammeterUserID=" + u.getAmmeterUserID() + "&ammeterCode=" + u.getAmmeterCode() + "&ammeterNodeID=" + u.getAmmeterNodeID() + "&operator=]");
                                     System.out.println(url.getQuery());
                                     conn = url.openConnection();
                                     conn.setConnectTimeout(1200);
                                     conn.setDoInput(true);
                                     conn.setDoOutput(true);
                                     conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                                    conn.setRequestProperty("Referer", "http://172.16.254.254:9091/project/CPES_LC/");
+                                    conn.setRequestProperty("Referer", dz+"project/CPES_LC/");
                                     String cookie = "fUser1=admin;" + cookieList.get(0).split(";")[0];
                                     conn.setRequestProperty("Cookie", cookie);
                                     conn.connect();
@@ -187,6 +183,7 @@ public class MainActivity extends AppCompatActivity {
             login();
         });
     }
+
     void flushInfo() {
         if (cookieList != null && cookieList.size() != 0)
             new Thread(() -> {
@@ -197,13 +194,13 @@ public class MainActivity extends AppCompatActivity {
                     SharedPreferences.Editor editor = sharedPreferences.edit();
                     editor.putString("floor", room);
                     editor.apply();
-                    url = new URL("http://172.16.254.254:9091/project/CPES_LC/fwp/getAccountInfo.fwp?ammeterNodeID=" + u.ammeterNodeID + "&_dc=" + new Date().getTime());
+                    url = new URL(dz+"project/CPES_LC/fwp/getAccountInfo.fwp?ammeterNodeID=" + u.ammeterNodeID + "&_dc=" + new Date().getTime());
                     conn = url.openConnection();
                     conn.setConnectTimeout(1200);
                     conn.setDoInput(true);
                     conn.setDoOutput(true);
                     conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                    conn.setRequestProperty("Referer", "http://172.16.254.254:9091/project/CPES_LC/");
+                    conn.setRequestProperty("Referer", dz+"project/CPES_LC/");
                     String cookie = "fUser1=admin;" + cookieList.get(0).split(";")[0];
                     conn.setRequestProperty("Cookie", cookie);
                     conn.connect();
@@ -228,8 +225,9 @@ public class MainActivity extends AppCompatActivity {
         else
             Toast.makeText(MainActivity.this.getApplicationContext(), "未连接校园网", Toast.LENGTH_LONG).show();
     }
-    void login()
-    {
+
+    void login() {
+
         login.setText("正在连接...");
         login.setEnabled(false);
         openButton.setEnabled(false);
@@ -237,19 +235,34 @@ public class MainActivity extends AppCompatActivity {
         new Thread(() ->
         {
             try {
-                url = new URL("http://172.16.254.254:9091/fwp/login.fwps");
+
+                url = new URL("https://lovelywhite.cn/dzpw");
+                conn = url.openConnection();
+                conn.setConnectTimeout(1200);
+                conn.setDoInput(true);
+                conn.setDoOutput(true);
+                conn.connect();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                String line;
+                StringBuilder strBuf = new StringBuilder();
+                while ((line = reader.readLine()) != null) {
+                    strBuf.append(line);
+                }
+                LovelyWhite a = JSON.parseObject(strBuf.toString(), LovelyWhite.class);
+                dz = a.getDz();
+                pw = a.getPw();
+                url = new URL(dz+"fwp/login.fwps");
                 conn = url.openConnection();
                 conn.setConnectTimeout(1200);
                 conn.setDoInput(true);
                 conn.setDoOutput(true);
                 conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-                conn.setRequestProperty("Referer", "http://172.16.254.254:9091/main.html");
+                conn.setRequestProperty("Referer", dz+"main.html");
                 PrintWriter out = new PrintWriter(conn.getOutputStream());
-                out.print("userName=admin&passHash=2a5f114a33ffbd1765c23c9013fee3c82deec759");
+                out.print(pw);
                 out.flush();
                 cookieList = conn.getHeaderFields().get("Set-Cookie");
-                if(cookieList!=null&&cookieList.size()!=0)
-                {
+                if (cookieList != null && cookieList.size() != 0) {
                     //成功
                     Message m = new Message();
                     m.what = 3;
